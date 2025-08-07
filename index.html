@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KI-Teststation für Verwaltungstexte</title>
+  <title>KI-Teststation für Verwaltungstexte (Deutsch)</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
@@ -22,28 +22,6 @@
       text-align: center;
     }
 
-    .examples {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5em;
-      margin-bottom: 1.5em;
-    }
-
-    .examples button {
-      background: #f3f4f6;
-      border: 1px solid #ccc;
-      padding: 0.8em;
-      border-radius: 8px;
-      font-size: 1em;
-      cursor: pointer;
-      transition: background 0.2s;
-      text-align: left;
-    }
-
-    .examples button:hover {
-      background: #e5e7eb;
-    }
-
     input[type="text"] {
       width: 100%;
       padding: 0.6em;
@@ -53,7 +31,7 @@
       border: 1px solid #ccc;
     }
 
-    button#analyzeBtn {
+    button {
       padding: 0.6em 1.2em;
       background: #111827;
       color: white;
@@ -81,102 +59,68 @@
 <body>
   <div class="container">
     <h1>Wie klingt Verwaltung für eine KI?</h1>
-    <p>
-      Unsere Mini-KI analysiert, wie freundlich oder abweisend ein Satz klingt.<br />
-      Beim ersten Klick wird ein Sprachmodell geladen – das dauert ein paar Sekunden.
-    </p>
+    <p>Diese Demo nutzt ein deutsches Sentiment-Modell über die Hugging Face API.<br />
+    Beim ersten Klick kann es etwas dauern.</p>
 
-    <p><strong>Beispielsätze zum Ausprobieren:</strong></p>
-    <div class="examples">
-      <button class="example">Bitte sehen Sie von Rückfragen ab.</button>
-      <button class="example">Ihr Antrag wird schnellstmöglich bearbeitet.</button>
-      <button class="example">Bei Fragen stehen wir gerne zur Verfügung.</button>
-      <button class="example">Die Bearbeitung kann sich aufgrund aktueller Auslastung verzögern.</button>
-      <button class="example">Sehr geehrte Damen und Herren, wir möchten Sie darüber informieren, dass Ihr Antrag derzeit geprüft wird. Bitte haben Sie Verständnis, dass die Bearbeitung noch etwas Zeit in Anspruch nehmen kann.</button>
-    </div>
-
-    <p><strong>Oder geben Sie Ihren eigenen Satz ein:</strong><br><small>(Maximal 1000 Zeichen)</small></p>
     <input id="textInput" type="text" maxlength="1000" placeholder="z. B. Ihr Antrag wird bearbeitet." />
     <button id="analyzeBtn">Stimmung prüfen</button>
 
-    <div id="loading" style="display: none;">⏳ Modell wird geladen…</div>
+    <div id="loading" style="display: none;">⏳ Analyse läuft…</div>
     <div id="output"></div>
   </div>
 
-  <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.4.1';
-
+  <script>
+    const API_URL = "https://api-inference.huggingface.co/models/oliverguhr/german-sentiment-bert";
     const btn = document.getElementById('analyzeBtn');
     const input = document.getElementById('textInput');
     const output = document.getElementById('output');
     const loading = document.getElementById('loading');
-    const examples = document.querySelectorAll('.example');
 
-    let sentiment = null;
-    let modelLoaded = false;
-
-    examples.forEach(button => {
-      button.addEventListener('click', () => {
-        if (!btn.disabled) {
-          input.value = button.innerText;
-          input.focus();
-        }
+    async function analyzeSentiment(text) {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs: text })
       });
-    });
 
-    btn.addEventListener('click', async () => {
+      if (!response.ok) {
+        throw new Error("Fehler beim Laden des Modells");
+      }
+
+      const result = await response.json();
+      return result[0]; // enthält Labels und Scores
+    }
+
+    btn.addEventListener("click", async () => {
       const text = input.value.trim();
       if (!text) {
-        output.innerText = 'Bitte geben Sie einen Satz ein.';
+        output.innerText = "Bitte geben Sie einen Text ein.";
         return;
       }
 
-      // Disable UI
       btn.disabled = true;
       input.disabled = true;
-      examples.forEach(btn => btn.disabled = true);
+      output.innerHTML = "";
+      loading.style.display = "block";
 
-      output.innerHTML = '';
-      loading.style.display = 'block';
+      try {
+        const result = await analyzeSentiment(text);
 
-      if (!modelLoaded) {
-        sentiment = await pipeline('sentiment-analysis');
-        modelLoaded = true;
+        let top = result.sort((a, b) => b.score - a.score)[0];
+        let label = top.label;
+        let emoji = "😐";
+        if (label === "positive") emoji = "😊";
+        else if (label === "negative") emoji = "😡";
+
+        output.innerHTML = `${emoji} <strong>${label.toUpperCase()}</strong><br><small>Sicherheit: ${(top.score * 100).toFixed(1)}%</small>`;
+      } catch (err) {
+        output.innerText = "Es ist ein Fehler aufgetreten.";
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        input.disabled = false;
+        loading.style.display = "none";
       }
-
-      loading.innerText = '⏳ Analyse läuft…';
-
-      const result = await sentiment(text);
-      const label = result[0].label;
-      const score = result[0].score;
-
-      loading.style.display = 'none';
-
-      let emoji = '😐';
-      let interpretation = 'Klingt neutral oder sachlich.';
-      if (label === 'POSITIVE') {
-        emoji = '😊';
-        interpretation = 'Klingt freundlich und bürgernah.';
-      } else if (label === 'NEGATIVE') {
-        emoji = '😡';
-        interpretation = 'Klingt eher abweisend oder unhöflich.';
-      }
-
-      let confidence = '';
-      if (score >= 0.9) {
-        confidence = 'Die KI ist sich dabei sehr sicher.';
-      } else if (score >= 0.7) {
-        confidence = 'Die KI ist sich ziemlich sicher.';
-      } else {
-        confidence = 'Die KI ist sich dabei nicht ganz sicher.';
-      }
-
-      output.innerHTML = `${emoji} <strong>${interpretation}</strong><br><small>${confidence}</small>`;
-
-      // Re-enable UI
-      btn.disabled = false;
-      input.disabled = false;
-      examples.forEach(btn => btn.disabled = false);
     });
   </script>
 </body>
