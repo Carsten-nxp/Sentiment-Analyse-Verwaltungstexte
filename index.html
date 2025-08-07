@@ -71,6 +71,11 @@
     #loading {
       margin-top: 1em;
     }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -112,8 +117,10 @@
 
     examples.forEach(button => {
       button.addEventListener('click', () => {
-        input.value = button.innerText;
-        input.focus();
+        if (!btn.disabled) {
+          input.value = button.innerText;
+          input.focus();
+        }
       });
     });
 
@@ -123,6 +130,11 @@
         output.innerText = 'Bitte geben Sie einen Satz ein.';
         return;
       }
+
+      // Disable UI
+      btn.disabled = true;
+      input.disabled = true;
+      examples.forEach(btn => btn.disabled = true);
 
       output.innerHTML = '';
       loading.style.display = 'block';
@@ -160,6 +172,11 @@
       }
 
       output.innerHTML = `${emoji} <strong>${interpretation}</strong><br><small>${confidence}</small>`;
+
+      // Re-enable UI
+      btn.disabled = false;
+      input.disabled = false;
+      examples.forEach(btn => btn.disabled = false);
     });
   </script>
 </body>
