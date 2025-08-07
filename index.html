@@ -4,7 +4,74 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KI-Teststation für Verwaltungstexte</title>
-  <link rel="stylesheet" href="style.css" />
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f9fafb;
+      padding: 2em;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 2em;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+      text-align: center;
+    }
+
+    .examples {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5em;
+      margin-bottom: 1.5em;
+    }
+
+    .examples button {
+      background: #f3f4f6;
+      border: 1px solid #ccc;
+      padding: 0.8em;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-align: left;
+    }
+
+    .examples button:hover {
+      background: #e5e7eb;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.6em;
+      font-size: 1em;
+      margin-bottom: 1em;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button#analyzeBtn {
+      padding: 0.6em 1.2em;
+      background: #111827;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+
+    #output {
+      margin-top: 1.5em;
+      font-size: 1.2em;
+    }
+
+    #loading {
+      margin-top: 1em;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -27,10 +94,73 @@
     <input id="textInput" type="text" maxlength="1000" placeholder="z. B. Ihr Antrag wird bearbeitet." />
     <button id="analyzeBtn">Stimmung prüfen</button>
 
-    <div id="loading" style="margin-top: 1em; display: none;">⏳ Modell wird geladen…</div>
+    <div id="loading" style="display: none;">⏳ Modell wird geladen…</div>
     <div id="output"></div>
   </div>
 
-  <script type="module" src="script.js"></script>
+  <script type="module">
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.4.1';
+
+    const btn = document.getElementById('analyzeBtn');
+    const input = document.getElementById('textInput');
+    const output = document.getElementById('output');
+    const loading = document.getElementById('loading');
+    const examples = document.querySelectorAll('.example');
+
+    let sentiment = null;
+    let modelLoaded = false;
+
+    examples.forEach(button => {
+      button.addEventListener('click', () => {
+        input.value = button.innerText;
+        input.focus();
+      });
+    });
+
+    btn.addEventListener('click', async () => {
+      const text = input.value.trim();
+      if (!text) {
+        output.innerText = 'Bitte geben Sie einen Satz ein.';
+        return;
+      }
+
+      output.innerHTML = '';
+      loading.style.display = 'block';
+
+      if (!modelLoaded) {
+        sentiment = await pipeline('sentiment-analysis');
+        modelLoaded = true;
+      }
+
+      loading.innerText = '⏳ Analyse läuft…';
+
+      const result = await sentiment(text);
+      const label = result[0].label;
+      const score = result[0].score;
+
+      loading.style.display = 'none';
+
+      let emoji = '😐';
+      let interpretation = 'Klingt neutral oder sachlich.';
+      if (label === 'POSITIVE') {
+        emoji = '😊';
+        interpretation = 'Klingt freundlich und bürgernah.';
+      } else if (label === 'NEGATIVE') {
+        emoji = '😡';
+        interpretation = 'Klingt eher abweisend oder unhöflich.';
+      }
+
+      let confidence = '';
+      if (score >= 0.9) {
+        confidence = 'Die KI ist sich dabei sehr sicher.';
+      } else if (score >= 0.7) {
+        confidence = 'Die KI ist sich ziemlich sicher.';
+      } else {
+        confidence = 'Die KI ist sich dabei nicht ganz sicher.';
+      }
+
+      output.innerHTML = `${emoji} <strong>${interpretation}</strong><br><small>${confidence}</small>`;
+    });
+  </script>
 </body>
 </html>
